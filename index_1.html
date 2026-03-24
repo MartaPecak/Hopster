@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hopster — Rezerwacja placu</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f5f5f3;
+    --text: #1a1a18;
+    --text-secondary: #6b6b67;
+    --border: rgba(0,0,0,0.12);
+    --border-hover: rgba(0,0,0,0.25);
+    --blue: #185FA5;
+    --blue-dark: #0C447C;
+    --blue-light: #E6F1FB;
+    --red: #E24B4A;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e1c;
+      --bg-secondary: #2a2a28;
+      --text: #f0ede8;
+      --text-secondary: #9a9a94;
+      --border: rgba(255,255,255,0.12);
+      --border-hover: rgba(255,255,255,0.28);
+      --blue: #4a9de0;
+      --blue-dark: #6db3f0;
+      --blue-light: #0c2a44;
+    }
+  }
+
+  body { font-family: var(--font); background: var(--bg-secondary); color: var(--text); min-height: 100vh; }
+
+  .topbar {
+    background: var(--bg); border-bottom: 0.5px solid var(--border);
+    padding: 0 1.5rem; height: 56px; display: flex; align-items: center;
+    gap: 10px; position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-logo {
+    width: 30px; height: 30px; background: var(--blue); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 15px; font-weight: 700;
+  }
+  .topbar-title { font-size: 16px; font-weight: 500; }
+  .topbar-sub { font-size: 13px; color: var(--text-secondary); margin-left: 4px; }
+
+  .layout {
+    max-width: 980px; margin: 0 auto; padding: 2rem 1.5rem;
+    display: grid; grid-template-columns: 1fr 330px;
+    gap: 1.5rem; align-items: start;
+  }
+  @media (max-width: 720px) { .layout { grid-template-columns: 1fr; padding: 1rem; } }
+
+  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; }
+
+  .calendar-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; }
+  .nav-btn {
+    background: none; border: 0.5px solid var(--border); border-radius: var(--radius-md);
+    width: 32px; height: 32px; cursor: pointer; color: var(--text); font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-btn:hover { background: var(--bg-secondary); }
+  .month-label { font-size: 16px; font-weight: 500; flex: 1; }
+
+  .week-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+  .day-header {
+    text-align: center; font-size: 11px; color: var(--text-secondary);
+    padding: 4px 0 8px; text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .day-cell {
+    border: 0.5px solid var(--border); border-radius: var(--radius-md);
+    padding: 7px 5px; min-height: 72px; cursor: pointer;
+    background: var(--bg); transition: border-color 0.12s, background 0.12s;
+  }
+  .day-cell:hover { border-color: var(--border-hover); background: var(--bg-secondary); }
+  .day-cell.empty { background: none; border-color: transparent; cursor: default; pointer-events: none; }
+  .day-cell.past { opacity: 0.4; pointer-events: none; }
+  .day-cell.today { border-color: var(--blue); }
+  .day-cell.selected { border-color: var(--blue); background: var(--blue-light); }
+  .day-num { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+  .day-cell.today .day-num, .day-cell.selected .day-num { color: var(--blue); }
+
+  .res-dot { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--text-secondary); margin-top: 2px; overflow: hidden; white-space: nowrap; }
+  .dot-circle { width: 5px; height: 5px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+  .dot-more { font-size: 10px; color: var(--blue); margin-top: 2px; }
+
+  .sidebar-date { font-size: 14px; color: var(--blue); font-weight: 500; margin-bottom: 14px; }
+  .section-label { font-size: 15px; font-weight: 500; margin-bottom: 12px; }
+
+  .form-row { margin-bottom: 11px; }
+  .form-row label { display: block; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .form-row input {
+    width: 100%; padding: 8px 10px; font-size: 14px;
+    border: 0.5px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg); color: var(--text); font-family: var(--font);
+  }
+  .form-row input:focus { outline: none; border-color: var(--blue); }
+  .time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .submit-btn {
+    width: 100%; padding: 10px; background: var(--blue); color: white;
+    border: none; border-radius: var(--radius-md); font-size: 14px; font-weight: 500;
+    cursor: pointer; margin-top: 6px; font-family: var(--font); transition: background 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .submit-btn:hover { background: var(--blue-dark); }
+  .submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .divider { border: none; border-top: 0.5px solid var(--border); margin: 1.25rem 0; }
+
+  .res-count-row { display: flex; align-items: center; margin-bottom: 10px; }
+  .count-badge {
+    display: inline-block; background: var(--blue-light); color: var(--blue);
+    font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 20px; margin-left: 6px;
+  }
+
+  .res-card {
+    background: var(--bg-secondary); border-radius: var(--radius-md);
+    padding: 10px 12px; margin-bottom: 7px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .res-time { font-size: 12px; font-weight: 500; color: var(--blue); min-width: 95px; }
+  .res-info { flex: 1; }
+  .res-name { font-size: 14px; }
+  .res-dog { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .del-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 18px; padding: 0 2px; line-height: 1; transition: color 0.12s; }
+  .del-btn:hover { color: var(--red); }
+
+  .empty-msg { font-size: 13px; color: var(--text-secondary); padding: 8px 0; }
+  .hint { font-size: 13px; color: var(--text-secondary); text-align: center; padding: 2.5rem 1rem; line-height: 1.7; }
+
+  .loading-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; font-size: 13px; color: var(--text-secondary); }
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--text); color: var(--bg);
+    padding: 10px 20px; border-radius: var(--radius-md);
+    font-size: 13px; opacity: 0; pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    white-space: nowrap; z-index: 999;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">H</div>
+  <span class="topbar-title">Hopster</span>
+  <span class="topbar-sub">Rezerwacja placu</span>
+</div>
+
+<div class="layout">
+  <div class="card">
+    <div class="calendar-nav">
+      <button class="nav-btn" id="prev-btn">&#8592;</button>
+      <span class="month-label" id="month-label"></span>
+      <button class="nav-btn" id="next-btn">&#8594;</button>
+    </div>
+    <div class="week-grid" id="day-headers"></div>
+    <div class="week-grid" id="cal-grid"></div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div id="no-sel" class="hint">Wybierz dzień w kalendarzu,<br>aby zobaczyć rezerwacje<br>lub dodać nową</div>
+      <div id="form-section" style="display:none;">
+        <div class="sidebar-date" id="sel-label"></div>
+        <div class="section-label">Nowa rezerwacja</div>
+        <div class="form-row">
+          <label>Twoje imię</label>
+          <input type="text" id="inp-name" placeholder="np. Anna" autocomplete="off" />
+        </div>
+        <div class="form-row">
+          <label>Imię psa</label>
+          <input type="text" id="inp-dog" placeholder="np. Burek" autocomplete="off" />
+        </div>
+        <div class="time-row">
+          <div class="form-row">
+            <label>Od</label>
+            <input type="time" id="inp-from" />
+          </div>
+          <div class="form-row">
+            <label>Do</label>
+            <input type="time" id="inp-to" />
+          </div>
+        </div>
+        <button class="submit-btn" id="submit-btn">
+          <span id="btn-label">Zarezerwuj</span>
+        </button>
+
+        <hr class="divider" />
+
+        <div class="res-count-row">
+          <span class="section-label" style="margin-bottom:0;">Rezerwacje</span>
+          <span class="count-badge" id="res-count">0</span>
+        </div>
+        <div id="res-items"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://eolzydquijjioyilkeeg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvbHp5ZHF1aWpqaW95aWxrZWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODM5OTIsImV4cCI6MjA4OTg1OTk5Mn0.OuntBQNUclAIuHuhm3a41JsuWwJ83hHfeMwiXP1kthQ';
+
+const DAYS   = ['Pon','Wt','Śr','Czw','Pt','Sob','Nd'];
+const MONTHS = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+
+const today = new Date();
+let curYear  = today.getFullYear();
+let curMonth = today.getMonth();
+let selKey   = null;
+let cache    = {};
+
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer !== undefined ? opts.prefer : 'return=representation',
+      ...(opts.extraHeaders || {})
+    }
+  });
+  if (!res.ok) throw new Error(await res.text());
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function fetchMonth(year, month) {
+  const pad  = n => String(n).padStart(2,'0');
+  const from = `${year}-${pad(month+1)}-01`;
+  const to   = `${year}-${pad(month+1)}-${new Date(year, month+1, 0).getDate()}`;
+  const data = await apiFetch(`reservations?date_key=gte.${from}&date_key=lte.${to}&order=time_from.asc`, { prefer: '' });
+  cache = {};
+  (data || []).forEach(r => {
+    if (!cache[r.date_key]) cache[r.date_key] = [];
+    cache[r.date_key].push(r);
+  });
+}
+
+async function fetchDay(key) {
+  const data = await apiFetch(`reservations?date_key=eq.${key}&order=time_from.asc`, { prefer: '' });
+  cache[key] = data || [];
+  return cache[key];
+}
+
+async function insertRes(payload) {
+  return apiFetch('reservations', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+async function deleteRes(id) {
+  return apiFetch(`reservations?id=eq.${id}`, { method: 'DELETE', prefer: '' });
+}
+
+function dateKey(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function formatPL(key) {
+  const [y,m,d] = key.split('-').map(Number);
+  return `${d} ${MONTHS[m-1]} ${y}`;
+}
+
+function renderHeaders() {
+  document.getElementById('day-headers').innerHTML =
+    DAYS.map(d => `<div class="day-header">${d}</div>`).join('');
+}
+
+function renderCalendar() {
+  document.getElementById('month-label').textContent = `${MONTHS[curMonth]} ${curYear}`;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  const firstDow   = new Date(curYear, curMonth, 1).getDay();
+  const offset     = (firstDow + 6) % 7;
+  const daysInMonth = new Date(curYear, curMonth + 1, 0).getDate();
+  const todayKey   = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
+
+  for (let i = 0; i < offset; i++) {
+    const el = document.createElement('div');
+    el.className = 'day-cell empty';
+    grid.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key  = dateKey(curYear, curMonth, d);
+    const recs = cache[key] || [];
+    const isPast = key < todayKey;
+    const cell = document.createElement('div');
+    let cls = 'day-cell';
+    if (isPast)         cls += ' past';
+    if (key === todayKey) cls += ' today';
+    if (key === selKey)   cls += ' selected';
+    cell.className = cls;
+
+    const sorted = [...recs].sort((a,b) => a.time_from.localeCompare(b.time_from));
+    const dots = sorted.slice(0,2).map(r =>
+      `<div class="res-dot"><span class="dot-circle"></span><span>${r.time_from.slice(0,5)} ${r.name.split(' ')[0]}</span></div>`
+    ).join('');
+    const more = recs.length > 2 ? `<div class="dot-more">+${recs.length-2} więcej</div>` : '';
+    cell.innerHTML = `<div class="day-num">${d}</div>${dots}${more}`;
+    if (!isPast) cell.addEventListener('click', () => selectDay(key));
+    grid.appendChild(cell);
+  }
+}
+
+async function selectDay(key) {
+  selKey = key;
+  renderCalendar();
+  document.getElementById('no-sel').style.display = 'none';
+  document.getElementById('form-section').style.display = 'block';
+  document.getElementById('sel-label').textContent = formatPL(key);
+  await renderResList();
+}
+
+async function renderResList() {
+  const items = document.getElementById('res-items');
+  items.innerHTML = '<div class="loading-row"><div class="spinner"></div><span>Ładowanie...</span></div>';
+  try {
+    const recs = await fetchDay(selKey);
+    renderCalendar();
+    document.getElementById('res-count').textContent = recs.length;
+    if (recs.length === 0) {
+      items.innerHTML = '<div class="empty-msg">Brak rezerwacji w tym dniu.</div>';
+      return;
+    }
+    items.innerHTML = recs.map(r => `
+      <div class="res-card">
+        <div class="res-time">${r.time_from.slice(0,5)} – ${r.time_to.slice(0,5)}</div>
+        <div class="res-info">
+          <div class="res-name">${r.name}</div>
+          <div class="res-dog">Pies: ${r.dog}</div>
+        </div>
+        <button class="del-btn" data-id="${r.id}" title="Usuń">&#215;</button>
+      </div>
+    `).join('');
+    items.querySelectorAll('.del-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await deleteRes(btn.dataset.id);
+          showToast('Rezerwacja usunięta');
+          await renderResList();
+        } catch {
+          showToast('Błąd przy usuwaniu');
+          btn.disabled = false;
+        }
+      });
+    });
+  } catch(e) {
+    items.innerHTML = '<div class="empty-msg">Błąd połączenia z bazą danych.</div>';
+  }
+}
+
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  const name = document.getElementById('inp-name').value.trim();
+  const dog  = document.getElementById('inp-dog').value.trim();
+  const from = document.getElementById('inp-from').value;
+  const to   = document.getElementById('inp-to').value;
+
+  if (!name) { showToast('Wpisz swoje imię'); return; }
+  if (!dog)  { showToast('Wpisz imię psa'); return; }
+  if (!from) { showToast('Podaj godzinę rozpoczęcia'); return; }
+  if (!to)   { showToast('Podaj godzinę zakończenia'); return; }
+  if (from >= to) { showToast('Godzina zakończenia musi być późniejsza'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  document.getElementById('btn-label').textContent = 'Zapisywanie...';
+
+  try {
+    await insertRes({ date_key: selKey, name, dog, time_from: from, time_to: to });
+    document.getElementById('inp-name').value = '';
+    document.getElementById('inp-dog').value  = '';
+    document.getElementById('inp-from').value = '';
+    document.getElementById('inp-to').value   = '';
+    showToast('Rezerwacja dodana!');
+    await renderResList();
+  } catch {
+    showToast('Błąd zapisu — spróbuj ponownie');
+  } finally {
+    btn.disabled = false;
+    document.getElementById('btn-label').textContent = 'Zarezerwuj';
+  }
+});
+
+document.getElementById('prev-btn').addEventListener('click', async () => {
+  curMonth--; if (curMonth < 0) { curMonth = 11; curYear--; }
+  await loadMonth();
+});
+document.getElementById('next-btn').addEventListener('click', async () => {
+  curMonth++; if (curMonth > 11) { curMonth = 0; curYear++; }
+  await loadMonth();
+});
+
+async function loadMonth() {
+  await fetchMonth(curYear, curMonth);
+  renderCalendar();
+  if (selKey) await renderResList();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+(async () => {
+  renderHeaders();
+  await loadMonth();
+})();
+</script>
+</body>
+</html>
